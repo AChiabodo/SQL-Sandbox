@@ -10,24 +10,101 @@ type ResultPanelProps = {
   title?: string;
 };
 
+type ExplainPlanNode = Record<string, unknown> & {
+  Plans?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractExplainPlans(value: unknown): ExplainPlanNode[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const plans = value
+    .map((item) => {
+      if (!isRecord(item) || !isRecord(item.Plan)) {
+        return null;
+      }
+      return item.Plan as ExplainPlanNode;
+    })
+    .filter((plan): plan is ExplainPlanNode => plan !== null);
+
+  return plans.length ? plans : null;
+}
+
+function describeExplainNode(plan: ExplainPlanNode): string {
+  const nodeType = typeof plan["Node Type"] === "string" ? plan["Node Type"] : "Plan";
+  const joinType = typeof plan["Join Type"] === "string" ? ` (${plan["Join Type"]})` : "";
+  const relationName =
+    typeof plan["Relation Name"] === "string" ? ` on ${plan["Relation Name"]}` : "";
+  const rows = typeof plan["Plan Rows"] === "number" ? ` | rows ${plan["Plan Rows"]}` : "";
+  const cost =
+    typeof plan["Total Cost"] === "number" ? ` | cost ${plan["Total Cost"].toFixed(2)}` : "";
+  return `${nodeType}${joinType}${relationName}${rows}${cost}`;
+}
+
+function formatExplainTree(plan: ExplainPlanNode, depth = 0): string[] {
+  const indent = "  ".repeat(depth);
+  const linePrefix = depth === 0 ? "" : "- ";
+  const lines = [`${indent}${linePrefix}${describeExplainNode(plan)}`];
+  const children = Array.isArray(plan.Plans)
+    ? plan.Plans.filter(isRecord).map((child) => child as ExplainPlanNode)
+    : [];
+
+  children.forEach((child) => {
+    lines.push(...formatExplainTree(child, depth + 1));
+  });
+
+  return lines;
+}
+
+function renderResultCell(value: unknown, column: string, result: SqlResult) {
+  if (
+    result.classification.statementType === "EXPLAIN" &&
+    column === "QUERY PLAN"
+  ) {
+    const plans = extractExplainPlans(value);
+    if (plans) {
+      return (
+        <div className="explain-plan-tree">
+          <pre>{plans.flatMap((plan) => formatExplainTree(plan)).join("\n")}</pre>
+        </div>
+      );
+    }
+  }
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return (
+    <div className="result-json-cell">
+      <pre>{JSON.stringify(value, null, 2)}</pre>
+    </div>
+  );
+}
+
 function extractExplainHeadline(result: SqlResult): string | null {
   if (result.classification.statementType !== "EXPLAIN" || result.rows.length === 0) {
     return null;
   }
 
-  const root = result.rows[0]?.["QUERY PLAN"];
-  if (!Array.isArray(root) || root.length === 0) {
+  const plans = extractExplainPlans(result.rows[0]?.["QUERY PLAN"]);
+  if (!plans?.length) {
     return null;
   }
 
-  const plan = root[0]?.Plan;
-  if (!plan || typeof plan !== "object") {
-    return null;
-  }
-
+  const plan = plans[0];
   const nodeType = typeof plan["Node Type"] === "string" ? plan["Node Type"] : "Plan";
   const relationName =
-    typeof plan["Relation Name"] === "string" ? ` su ${plan["Relation Name"]}` : "";
+    typeof plan["Relation Name"] === "string" ? ` on ${plan["Relation Name"]}` : "";
   return `${nodeType}${relationName}`;
 }
 
@@ -96,7 +173,7 @@ export function ResultPanel({ result, error, notice, title = "Risultato" }: Resu
             {result.rows.map((row, index) => (
               <tr key={index}>
                 {result.columns.map((column) => (
-                  <td key={column}>{String(row[column] ?? "")}</td>
+                  <td key={column}>{renderResultCell(row[column], column, result)}</td>
                 ))}
               </tr>
             ))}

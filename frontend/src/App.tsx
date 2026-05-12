@@ -8,9 +8,13 @@ import { LlmChatPanel } from "./components/LlmChatPanel";
 import { SqlWorkbench } from "./components/SqlWorkbench";
 import { TableBrowser } from "./components/TableBrowser";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
+import { addDashboardWidget, updateDashboardWidget } from "./dashboardStorage";
 import type {
   BuilderState,
   ChatMessage,
+  DashboardSqlEditSession,
+  DashboardWidget,
+  DashboardWidgetProposal,
   DatasetCatalogItem,
   DatasetInitResult,
   LlmStatus,
@@ -36,6 +40,7 @@ import {
 
 type LlmStreamEvent =
   | { event: "progress"; data: LlmProgressEvent }
+  | { event: "token"; data: { text: string } }
   | { event: "final"; data: LlmSqlResponse };
 
 async function readLlmStream(
@@ -68,6 +73,9 @@ async function readLlmStream(
 
     if (eventName === "progress") {
       onEvent({ event: "progress", data: JSON.parse(data) as LlmProgressEvent });
+    }
+    if (eventName === "token") {
+      onEvent({ event: "token", data: JSON.parse(data) as { text: string } });
     }
     if (eventName === "final") {
       finalResponse = JSON.parse(data) as LlmSqlResponse;
@@ -116,6 +124,8 @@ export default function App() {
   const [llmPrompt, setLlmPrompt] = useState("Mostra il fatturato per paese negli ultimi 90 giorni");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [llmProgress, setLlmProgress] = useState<LlmProgressEvent[]>([]);
+  const [llmStreamingText, setLlmStreamingText] = useState("");
+  const [dashboardSqlEdit, setDashboardSqlEdit] = useState<DashboardSqlEditSession | null>(null);
   const [sqlHistory, setSqlHistory] = useState<SqlHistoryItem[]>([]);
   const [tableLimit, setTableLimit] = useState(100);
   const [tableOffset, setTableOffset] = useState(0);
@@ -290,6 +300,15 @@ export default function App() {
     setSqlHistory((current) => [nextItem, ...current.filter((item) => item.sql !== statement)].slice(0, 8));
   };
 
+  const dashboardTitleFromSql = (statement: string): string => {
+    const candidate = statement
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith("--"));
+    if (!candidate) return "Query SQL";
+    return candidate.length > 48 ? `${candidate.slice(0, 48)}...` : candidate;
+  };
+
   const switchDataset = async (datasetId: string) => {
     const nextDataset = datasets.find((dataset) => dataset.id === datasetId);
     if (!nextDataset) return;
@@ -298,6 +317,7 @@ export default function App() {
     setError(null);
     setNotice(null);
     setResult(null);
+    setDashboardSqlEdit(null);
     setActiveDatasetId(datasetId);
 
     try {
@@ -443,6 +463,7 @@ export default function App() {
 
     setChatMessages((current) => [...current, userMessage]);
     setLlmProgress([{ stage: "request", message: "Invio richiesta all'agente SQL" }]);
+    setLlmStreamingText("");
     setLoading(true);
 
     try {
@@ -469,6 +490,9 @@ export default function App() {
         if (event.event === "progress") {
           setLlmProgress((current) => [...current, event.data]);
         }
+        if (event.event === "token") {
+          setLlmStreamingText((current) => `${current}${event.data.text}`);
+        }
       });
 
       setLlmProgress((current) => [
@@ -486,7 +510,8 @@ export default function App() {
           clarifyingQuestions: response.clarifyingQuestions,
           usedTables: response.usedTables,
           assumptions: response.assumptions,
-          validationSummary: response.validationSummary
+          validationSummary: response.validationSummary,
+          dashboardWidget: response.dashboardWidget
         }
       ]);
     } catch (err) {
@@ -500,15 +525,81 @@ export default function App() {
         }
       ]);
     } finally {
+      setLlmStreamingText("");
       setLoading(false);
     }
   };
 
   const useSqlFromChat = (nextSql: string) => {
+    setDashboardSqlEdit(null);
     setActiveMode("sql");
     setSql(nextSql);
     setSelectedStarterTitle(null);
     setNotice("SQL importato dalla chat LLM nell'editor diretto.");
+  };
+
+  const sendWidgetToSqlEditor = (widget: DashboardWidget) => {
+    if (!activeDataset?.schemaName) return;
+    setDashboardSqlEdit({ schemaName: activeDataset.schemaName, widget });
+    setActiveMode("sql");
+    setSql(widget.sql);
+    setSelectedStarterTitle(null);
+    setNotice(`Modifica "${widget.title}" nell'editor SQL e salva per aggiornare la dashboard.`);
+  };
+
+  const saveDashboardSqlEdit = () => {
+    if (!activeDataset?.initialized || !dashboardSqlEdit) return;
+    if (activeDataset.schemaName !== dashboardSqlEdit.schemaName) {
+      setError("Il dataset attivo non corrisponde al widget dashboard in modifica.");
+      return;
+    }
+
+    const updated = updateDashboardWidget(activeDataset, {
+      ...dashboardSqlEdit.widget,
+      sql
+    });
+    setDashboardSqlEdit(null);
+    setActiveMode("dashboard");
+    setNotice(`Modifiche salvate per "${updated.title}".`);
+  };
+
+  const cancelDashboardSqlEdit = () => {
+    setDashboardSqlEdit(null);
+    setNotice("Modifica dashboard annullata. L'editor SQL resta disponibile.");
+  };
+
+  const addSqlEditorToDashboard = () => {
+    if (!activeDataset?.initialized) {
+      setError("Seleziona e inizializza un dataset prima di aggiungere widget alla dashboard.");
+      return;
+    }
+    const trimmedSql = sql.trim();
+    if (!trimmedSql) {
+      setError("Scrivi una query SQL prima di aggiungerla alla dashboard.");
+      return;
+    }
+
+    const added = addDashboardWidget(activeDataset, {
+      title: selectedStarterTitle ?? dashboardTitleFromSql(trimmedSql),
+      type: "table",
+      sql: trimmedSql,
+      xField: "",
+      yField: "",
+      refreshMs: 30000
+    });
+    setActiveMode("dashboard");
+    setNotice(`Widget "${added.title}" aggiunto alla dashboard.`);
+  };
+
+  const addWidgetFromChat = (widget: DashboardWidgetProposal) => {
+    if (!activeDataset?.initialized) {
+      setError("Seleziona e inizializza un dataset prima di aggiungere widget alla dashboard.");
+      return;
+    }
+
+    const added = addDashboardWidget(activeDataset, widget);
+    setActiveMode("dashboard");
+    setNotice(`Widget "${added.title}" aggiunto alla dashboard.`);
   };
 
   return (
@@ -550,17 +641,24 @@ export default function App() {
             onSelectTable={(schemaName, table) => setSelectedTable({ schemaName, table })}
             onSqlChange={setSql}
             onSelectStarter={(title, nextSql) => {
+              setDashboardSqlEdit(null);
               setSelectedStarterTitle(title);
               setSql(nextSql);
             }}
             onSetConfirmDangerous={setConfirmDangerous}
             onExecuteSql={executeSql}
             onFormatSql={formatSql}
+            dashboardEditSession={dashboardSqlEdit}
+            onAddSqlToDashboard={addSqlEditorToDashboard}
+            onSaveDashboardSqlEdit={saveDashboardSqlEdit}
+            onCancelDashboardSqlEdit={cancelDashboardSqlEdit}
             onResetStarter={() => {
+              setDashboardSqlEdit(null);
               setSql(starterSqlForDataset(activeDataset));
               setSelectedStarterTitle(activeDataset?.starterQueries[0]?.title ?? null);
             }}
             onRestoreHistory={(item) => {
+              setDashboardSqlEdit(null);
               setSql(item.sql);
               setSelectedStarterTitle(null);
             }}
@@ -586,7 +684,11 @@ export default function App() {
         )}
 
         {activeMode === "dashboard" && (
-          <AdvancedDashboard activeDataset={activeDataset} schemas={schemas} />
+          <AdvancedDashboard
+            activeDataset={activeDataset}
+            schemas={schemas}
+            onSendWidgetToSqlEditor={sendWidgetToSqlEditor}
+          />
         )}
 
         {activeMode === "tables" && (
@@ -617,9 +719,11 @@ export default function App() {
             loading={loading}
             messages={chatMessages}
             progressEvents={llmProgress}
+            streamingText={llmStreamingText}
             onPromptChange={setLlmPrompt}
             onSubmit={askLlm}
             onUseSql={useSqlFromChat}
+            onAddDashboardWidget={addWidgetFromChat}
           />
         )}
       </section>

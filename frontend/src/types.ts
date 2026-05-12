@@ -1,3 +1,5 @@
+import type { ResponsiveLayouts } from "react-grid-layout";
+
 export type ColumnInfo = {
   name: string;
   dataType: string;
@@ -129,6 +131,31 @@ export type TableSelectionRef = {
 
 export type WorkspaceMode = "sql" | "lowcode" | "dashboard" | "tables" | "llm";
 
+export type WidgetType = "kpi" | "bar" | "line" | "area" | "pie" | "table";
+
+export type DashboardWidgetProposal = {
+  title: string;
+  type: WidgetType;
+  sql: string;
+  xField: string;
+  yField: string;
+  refreshMs: number;
+};
+
+export type DashboardWidget = DashboardWidgetProposal & {
+  id: string;
+};
+
+export type DashboardSqlEditSession = {
+  schemaName: string;
+  widget: DashboardWidget;
+};
+
+export type DashboardStorage = {
+  widgets: DashboardWidget[];
+  layouts: ResponsiveLayouts;
+};
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -139,6 +166,7 @@ export type ChatMessage = {
   usedTables?: string[];
   assumptions?: string[];
   validationSummary?: string;
+  dashboardWidget?: DashboardWidgetProposal | null;
 };
 
 export type LlmSqlResponse = {
@@ -152,6 +180,7 @@ export type LlmSqlResponse = {
   usedTables: string[];
   assumptions: string[];
   validationSummary: string;
+  dashboardWidget: DashboardWidgetProposal | null;
 };
 
 export type LlmProgressEvent = {

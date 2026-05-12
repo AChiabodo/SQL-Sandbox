@@ -16,24 +16,13 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { LayoutDashboard, Pause, Pencil, Play, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Code2, LayoutDashboard, Pause, Pencil, Play, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { ResponsiveGridLayout, useContainerWidth, type Layout, type ResponsiveLayouts } from "react-grid-layout";
 import { useEffect, useMemo, useState } from "react";
 
-import type { DatasetCatalogItem, SchemaInfo, SqlResult } from "../types";
+import { defaultLayouts, defaultWidgets, layoutForWidget, loadDashboard, saveDashboard } from "../dashboardStorage";
+import type { DashboardStorage, DashboardWidget, DatasetCatalogItem, SchemaInfo, SqlResult, WidgetType } from "../types";
 import { formatResultColumn, humanizeIdentifier, makeId, requestJson } from "../utils";
-
-type WidgetType = "kpi" | "bar" | "line" | "area" | "pie" | "table";
-
-type DashboardWidget = {
-  id: string;
-  title: string;
-  type: WidgetType;
-  sql: string;
-  xField: string;
-  yField: string;
-  refreshMs: number;
-};
 
 type WidgetRunState = {
   loading: boolean;
@@ -42,16 +31,12 @@ type WidgetRunState = {
   lastUpdated: string | null;
 };
 
-type DashboardStorage = {
-  widgets: DashboardWidget[];
-  layouts: ResponsiveLayouts;
-};
-
 type DashboardDraft = DashboardWidget & { mode: "create" | "edit" };
 
 type AdvancedDashboardProps = {
   activeDataset: DatasetCatalogItem | null;
   schemas: SchemaInfo[];
+  onSendWidgetToSqlEditor: (widget: DashboardWidget) => void;
 };
 
 const chartColors = ["#1f7d5b", "#2563eb", "#d97706", "#7c3aed", "#be123c", "#0f766e"];
@@ -62,67 +47,6 @@ const refreshOptions = [
   { label: "60s", value: 60000 },
   { label: "5m", value: 300000 }
 ];
-
-function storageKey(schemaName: string | null | undefined): string {
-  return `dashboard.v1.${schemaName ?? "empty"}`;
-}
-
-function defaultWidgetType(title: string, index: number): WidgetType {
-  const normalized = title.toLowerCase();
-  if (normalized.includes("mensile") || normalized.includes("tempo") || normalized.includes("response")) return "line";
-  if (normalized.includes("tasso") || normalized.includes("csat")) return "bar";
-  if (index === 0) return "area";
-  if (index === 1) return "bar";
-  return "table";
-}
-
-function defaultWidgets(dataset: DatasetCatalogItem | null): DashboardWidget[] {
-  if (!dataset?.starterQueries.length) return [];
-  return dataset.starterQueries.map((starter, index) => ({
-    id: makeId("widget"),
-    title: starter.title,
-    type: defaultWidgetType(starter.title, index),
-    sql: starter.sql,
-    xField: "",
-    yField: "",
-    refreshMs: 30000
-  }));
-}
-
-function defaultLayouts(widgets: DashboardWidget[]): ResponsiveLayouts {
-  return {
-    lg: widgets.map((widget, index) => ({
-      i: widget.id,
-      x: (index % 2) * 6,
-      y: Math.floor(index / 2) * 7,
-      w: widget.type === "kpi" ? 3 : 6,
-      h: widget.type === "kpi" ? 4 : 7,
-      minW: widget.type === "kpi" ? 3 : 4,
-      minH: widget.type === "kpi" ? 3 : 5
-    }))
-  };
-}
-
-function loadDashboard(dataset: DatasetCatalogItem | null): DashboardStorage {
-  const fallbackWidgets = defaultWidgets(dataset);
-  const fallback = { widgets: fallbackWidgets, layouts: defaultLayouts(fallbackWidgets) };
-  if (!dataset?.schemaName) return fallback;
-
-  try {
-    const raw = window.localStorage.getItem(storageKey(dataset.schemaName));
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as DashboardStorage;
-    if (!Array.isArray(parsed.widgets) || !parsed.layouts) return fallback;
-    return parsed.widgets.length > 0 ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveDashboard(schemaName: string | null | undefined, storage: DashboardStorage) {
-  if (!schemaName) return;
-  window.localStorage.setItem(storageKey(schemaName), JSON.stringify(storage));
-}
 
 function numericColumns(result: SqlResult | null): string[] {
   if (!result?.rows.length) return [];
@@ -281,13 +205,15 @@ function WidgetEditor({
   result,
   onChange,
   onClose,
-  onSave
+  onSave,
+  onSendToSqlEditor
 }: {
   draft: DashboardDraft;
   result: SqlResult | null;
   onChange: (next: DashboardDraft) => void;
   onClose: () => void;
   onSave: () => void;
+  onSendToSqlEditor: () => void;
 }) {
   return (
     <div className="dashboard-editor-backdrop" role="dialog" aria-modal="true">
@@ -355,6 +281,10 @@ function WidgetEditor({
           <textarea value={draft.sql} onChange={(event) => onChange({ ...draft, sql: event.target.value })} />
         </label>
         <div className="toolbar-actions">
+          <button onClick={onSendToSqlEditor}>
+            <Code2 size={16} />
+            Invia all'editor SQL
+          </button>
           <button onClick={onClose}>Annulla</button>
           <button className="primary" onClick={onSave}>
             <Save size={16} />
@@ -366,7 +296,7 @@ function WidgetEditor({
   );
 }
 
-export function AdvancedDashboard({ activeDataset, schemas }: AdvancedDashboardProps) {
+export function AdvancedDashboard({ activeDataset, schemas, onSendWidgetToSqlEditor }: AdvancedDashboardProps) {
   const [{ widgets, layouts }, setDashboard] = useState<DashboardStorage>(() => loadDashboard(activeDataset));
   const [runs, setRuns] = useState<Record<string, WidgetRunState>>({});
   const [draft, setDraft] = useState<DashboardDraft | null>(null);
@@ -461,18 +391,7 @@ export function AdvancedDashboard({ activeDataset, schemas }: AdvancedDashboardP
         ? current.layouts
         : {
             ...current.layouts,
-            lg: [
-              ...(current.layouts.lg ?? []),
-              {
-                i: widget.id,
-                x: 0,
-                y: Infinity,
-                w: widget.type === "kpi" ? 3 : 6,
-                h: widget.type === "kpi" ? 4 : 7,
-                minW: widget.type === "kpi" ? 3 : 4,
-                minH: widget.type === "kpi" ? 3 : 5
-              }
-            ]
+            lg: [...(current.layouts.lg ?? []), layoutForWidget(widget)]
           };
       return { widgets: nextWidgets, layouts: nextLayouts };
     });
@@ -610,6 +529,11 @@ export function AdvancedDashboard({ activeDataset, schemas }: AdvancedDashboardP
           onChange={setDraft}
           onClose={() => setDraft(null)}
           onSave={saveDraft}
+          onSendToSqlEditor={() => {
+            const { mode, ...widget } = draft;
+            onSendWidgetToSqlEditor(widget);
+            setDraft(null);
+          }}
         />
       )}
     </div>

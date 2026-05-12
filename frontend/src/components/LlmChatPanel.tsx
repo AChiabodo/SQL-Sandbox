@@ -1,6 +1,6 @@
-import { Bot, MessageSquareText, Send, Sparkles } from "lucide-react";
+import { Bot, LayoutDashboard, MessageSquareText, Send, Sparkles } from "lucide-react";
 
-import type { ChatMessage, DatasetCatalogItem, LlmProgressEvent, LlmStatus } from "../types";
+import type { ChatMessage, DashboardWidgetProposal, DatasetCatalogItem, LlmProgressEvent, LlmStatus } from "../types";
 
 type LlmChatPanelProps = {
   llmStatus: LlmStatus | null;
@@ -9,9 +9,11 @@ type LlmChatPanelProps = {
   loading: boolean;
   messages: ChatMessage[];
   progressEvents: LlmProgressEvent[];
+  streamingText: string;
   onPromptChange: (value: string) => void;
   onSubmit: () => Promise<void>;
   onUseSql: (sql: string) => void;
+  onAddDashboardWidget: (widget: DashboardWidgetProposal) => void;
 };
 
 export function LlmChatPanel({
@@ -21,9 +23,11 @@ export function LlmChatPanel({
   loading,
   messages,
   progressEvents,
+  streamingText,
   onPromptChange,
   onSubmit,
-  onUseSql
+  onUseSql,
+  onAddDashboardWidget
 }: LlmChatPanelProps) {
   return (
     <div className="mode-layout llm-layout">
@@ -85,6 +89,18 @@ export function LlmChatPanel({
                       <button onClick={() => onUseSql(message.sql ?? "")}>Usa nell'editor SQL</button>
                     </div>
                   )}
+                  {message.dashboardWidget && (
+                    <div className="chat-dashboard-action">
+                      <div>
+                        <strong>{message.dashboardWidget.title}</strong>
+                        <span>{message.dashboardWidget.type}</span>
+                      </div>
+                      <button onClick={() => onAddDashboardWidget(message.dashboardWidget as DashboardWidgetProposal)}>
+                        <LayoutDashboard size={15} />
+                        Aggiungi alla dashboard
+                      </button>
+                    </div>
+                  )}
                   {(message.usedTables?.length || message.assumptions?.length || message.validationSummary) && (
                     <div className="chat-detail-list">
                       {message.usedTables?.length ? (
@@ -98,6 +114,12 @@ export function LlmChatPanel({
                   )}
                 </article>
               ))}
+              {loading && streamingText && (
+                <article className="chat-bubble assistant streaming">
+                  <span className="chat-role">Assistente</span>
+                  <p>{streamingText}</p>
+                </article>
+              )}
             </div>
           )}
         </section>
@@ -123,6 +145,12 @@ export function LlmChatPanel({
                   <p>{event.message}</p>
                 </div>
               ))}
+            </div>
+          )}
+          {loading && streamingText && (
+            <div className="streaming-preview">
+              <span>Streaming modello</span>
+              <p>{streamingText}</p>
             </div>
           )}
           <textarea

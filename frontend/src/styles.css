@@ -579,6 +579,226 @@ pre {
   color: #183529;
 }
 
+.dashboard-edit-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #8bbda7;
+  background: linear-gradient(135deg, #173d31 0%, #205d48 100%);
+  color: #f0fbf6;
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 22px rgba(19, 65, 49, 0.14);
+}
+
+.dashboard-edit-banner strong {
+  font-weight: 800;
+}
+
+.sql-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
+.sql-editor-grid.collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sql-editor-primary {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sql-context-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d8e5de;
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.sql-context-strip div {
+  min-width: 0;
+  border-right: 1px solid #e3ece7;
+  padding-right: 12px;
+}
+
+.sql-context-strip span,
+.sql-panel-section-title small {
+  display: block;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sql-context-strip strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sql-panel-toggle {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.sql-dataset-panel {
+  border: 1px solid #d6e3dc;
+  background: #f8fbf9;
+  border-radius: 8px;
+  padding: 14px;
+  min-width: 0;
+  max-height: 592px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sql-panel-header,
+.sql-panel-section-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sql-panel-header h3 {
+  margin: 2px 0 0;
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.sql-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sql-help-icon {
+  width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-soft);
+}
+
+.sql-panel-section {
+  border-top: 1px solid #e1eae5;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sql-panel-section-title span {
+  color: #22352e;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.starter-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.starter-card {
+  width: 100%;
+  justify-content: flex-start;
+  align-items: flex-start;
+  flex-direction: column;
+  text-align: left;
+  gap: 3px;
+  background: #ffffff;
+  border-color: #d9e4dd;
+  min-height: auto;
+  padding: 10px 11px;
+}
+
+.starter-card strong {
+  max-width: 100%;
+  color: var(--text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.starter-card small {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.starter-card.active {
+  background: #e8f5ee;
+  border-color: #99c8b2;
+}
+
+.sql-column-token-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.sql-column-token {
+  min-width: 0;
+  min-height: 58px;
+  justify-content: flex-start;
+  align-items: flex-start;
+  text-align: left;
+  background: #ffffff;
+  border-color: #d9e4dd;
+  padding: 10px;
+}
+
+.sql-column-token span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sql-column-token strong {
+  max-width: 100%;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sql-column-token small {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.sql-show-more-columns {
+  width: 100%;
+  min-height: 36px;
+  color: #1d4d3a;
+  background: #eef7f2;
+  border-color: #c8e1d3;
+}
+
+.starter-panel {
+  padding-bottom: 2px;
+}
+
 .monaco-frame {
   overflow: hidden;
   border-radius: 8px;
@@ -680,6 +900,22 @@ pre {
   border: 1px solid #e1e7e3;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
+}
+
+.result-json-cell,
+.explain-plan-tree {
+  min-width: 320px;
+}
+
+.result-json-cell pre,
+.explain-plan-tree pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.explain-plan-tree {
+  border-left: 3px solid #cfe0d7;
+  padding-left: 10px;
 }
 
 table {
@@ -1046,6 +1282,10 @@ summary {
   color: #edf5f0;
 }
 
+.chat-bubble.streaming {
+  border-style: dashed;
+}
+
 .chat-role {
   font-size: 11px;
   text-transform: uppercase;
@@ -1070,6 +1310,34 @@ summary {
 
 .chat-sql-preview button {
   align-self: flex-start;
+}
+
+.chat-dashboard-action {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-dashboard-action div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-dashboard-action span {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.chat-dashboard-action button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chat-empty-state {
@@ -1125,6 +1393,32 @@ summary {
 .progress-row p {
   margin: 0;
   color: var(--text-soft);
+}
+
+.streaming-preview {
+  border: 1px dashed #bad0c5;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfdfc;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.streaming-preview span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  color: #234236;
+}
+
+.streaming-preview p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.5;
+  max-height: 120px;
+  overflow: auto;
 }
 
 .lowcode-table-picker {
@@ -1499,7 +1793,8 @@ summary {
 
   .table-picker,
   .lowcode-table-picker,
-  .selector-toolbar {
+  .selector-toolbar,
+  .sql-editor-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1551,5 +1846,25 @@ summary {
   .toolbar-actions,
   .mode-tabs {
     width: 100%;
+  }
+
+  .sql-context-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sql-context-strip div {
+    border-right: 0;
+    border-bottom: 1px solid #e3ece7;
+    padding: 0 0 9px;
+  }
+
+  .sql-panel-toggle {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .sql-dataset-panel {
+    max-height: none;
   }
 }
