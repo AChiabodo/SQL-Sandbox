@@ -1,0 +1,3 @@
+-- Bootstrap intenzionalmente vuoto.
+-- Le raccolte dati di esempio vengono create on-demand via API/UI
+-- in schema dedicati (sales_dw, saas_billing, support_ops).

@@ -1,0 +1,28 @@
+{
+  "name": "postgres-sandbox-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@vitejs/plugin-react": "latest",
+    "lucide-react": "latest",
+    "monaco-editor": "^0.52.2",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-grid-layout": "^2.2.3",
+    "recharts": "^3.8.1",
+    "sql-formatter": "^15.6.10",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}
