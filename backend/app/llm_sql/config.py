@@ -101,7 +101,7 @@ class LlmSqlSettings(BaseSettings):
     )
     lm_studio: LMStudioConfig = Field(default_factory=lambda: LMStudioConfig(default_model="local-model"))
 
-    agent_max_steps: int = Field(default=10, alias="LLM_AGENT_MAX_STEPS")
+    agent_max_steps: int = Field(default=30, alias="LLM_AGENT_MAX_STEPS")
     preview_limit: int = Field(default=20, alias="LLM_PREVIEW_LIMIT")
 
     def get_provider_config(self, provider_name: str | None = None) -> CommonModelConfig:

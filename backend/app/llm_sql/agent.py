@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.llm_sql.model_factory import ModelProvider, model_provider
 from app.llm_sql.tools import build_sql_tools
+from app.models import DashboardWidgetProposal
 
 
 class SqlAgentOutput(BaseModel):
@@ -17,6 +18,7 @@ class SqlAgentOutput(BaseModel):
     usedTables: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     validationSummary: str = ""
+    dashboardWidget: DashboardWidgetProposal | None = None
 
 
 SYSTEM_PROMPT = """
@@ -38,12 +40,19 @@ Hard constraints:
 - Validate SQL with validate_sql before final success.
 - Use preview_sql or explain_sql when useful to catch syntax/table/column errors before final success.
 - If preview_sql reports an error, revise the SQL and try again. Do not retry indefinitely.
+- Use get_table_profile only when the compact schema is insufficient to choose fields or chart axes.
+- Do not call the same tool with the same input repeatedly.
+- After validate_sql reports ok=true and preview_sql or explain_sql succeeds, stop using tools and return the final structured response.
+- If validation/preview fails twice, return status=error or clarification_needed instead of looping.
 
 Response policy:
 - status=success only when sql is syntactically plausible, read-only, and validated.
 - status=clarification_needed when the user must choose tables, columns, filters, date ranges, or metric definitions.
 - status=error when the request cannot be satisfied with the configured schema or tools.
 - Keep message concise and useful for the UI.
+- When status=success and the request asks for a chart, KPI, trend, breakdown, report, dashboard, or visual insight, include dashboardWidget.
+- dashboardWidget.sql must match the final SQL and be read-only. Use type=kpi for one metric, line/area for time trends, bar for categories, pie for parts of a whole, and table for tabular results.
+- dashboardWidget.xField and dashboardWidget.yField must be aliases or column names produced by the SQL; leave them empty only when auto-detection is safer.
 """
 
 

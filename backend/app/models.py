@@ -162,6 +162,15 @@ class LlmProgressEvent(BaseModel):
     detail: dict[str, Any] | None = None
 
 
+class DashboardWidgetProposal(BaseModel):
+    title: str = Field(min_length=1)
+    type: Literal["kpi", "bar", "line", "area", "pie", "table"] = "table"
+    sql: str = Field(min_length=1)
+    xField: str = ""
+    yField: str = ""
+    refreshMs: int = Field(default=30000, ge=0, le=300000)
+
+
 class LlmTranslateResponse(BaseModel):
     enabled: bool
     provider: str | None
@@ -176,4 +185,4 @@ class LlmTranslateResponse(BaseModel):
 
 
 class LlmSqlResponse(LlmTranslateResponse):
-    pass
+    dashboardWidget: DashboardWidgetProposal | None = None

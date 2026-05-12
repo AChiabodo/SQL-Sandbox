@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from langgraph.errors import GraphRecursionError
 
 from app.llm_sql.config import (
     AnthropicConfig,
@@ -13,8 +14,9 @@ from app.llm_sql.config import (
 )
 from app.llm_sql.model_factory import MissingConfigurationError, ModelProvider, UnsupportedProviderError
 from app.llm_sql.schema_context import ColumnContext, RelationshipContext, SchemaContext, TableContext
-from app.llm_sql.service import provider_status
+from app.llm_sql.service import agent_error_message, provider_status, sse_event
 from app.llm_sql.tools import validate_sql
+from app.models import DashboardWidgetProposal, LlmSqlResponse
 
 
 def configured_settings() -> LlmSqlSettings:
@@ -55,12 +57,55 @@ def test_model_factory_rejects_missing_configuration() -> None:
 
 
 def test_provider_status_includes_active_provider_and_missing_fields() -> None:
-    settings = LlmSqlSettings(_env_file=None, openai=OpenAIConfig(default_model="gpt-test"))
+    settings = configured_settings()
+    settings.openai.api_key = None
     status = provider_status(ModelProvider(settings=settings))
 
     assert status["enabled"] is False
     assert status["provider"] == "openai"
     assert status["providers"][0]["missing"] == ["api_key"]
+
+
+def test_agent_max_steps_default_is_30() -> None:
+    assert LlmSqlSettings.model_fields["agent_max_steps"].default == 30
+
+
+def test_llm_sql_response_serializes_dashboard_widget() -> None:
+    response = LlmSqlResponse(
+        enabled=True,
+        provider="openai",
+        model="gpt-test",
+        status="success",
+        message="Query pronta.",
+        sql="SELECT 1 AS value",
+        dashboardWidget=DashboardWidgetProposal(
+            title="Valore",
+            type="kpi",
+            sql="SELECT 1 AS value",
+            yField="value",
+        ),
+    )
+
+    payload = response.model_dump()
+
+    assert payload["dashboardWidget"]["title"] == "Valore"
+    assert payload["dashboardWidget"]["type"] == "kpi"
+    assert payload["dashboardWidget"]["refreshMs"] == 30000
+
+
+def test_sse_event_serializes_token_event() -> None:
+    event = sse_event("token", {"text": "ciao"})
+
+    assert event.startswith("event: token\n")
+    assert 'data: {"text": "ciao"}' in event
+    assert event.endswith("\n\n")
+
+
+def test_recursion_error_message_hides_langgraph_limit_details() -> None:
+    message = agent_error_message(GraphRecursionError("Recursion limit of 10 reached without hitting a stop condition."))
+
+    assert "reasoning step limit" in message
+    assert "Recursion limit of 10" not in message
 
 
 def test_schema_context_compact_text_includes_fk() -> None:

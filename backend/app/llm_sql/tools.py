@@ -7,6 +7,7 @@ from typing import Any
 
 from langchain_core.tools import StructuredTool
 from psycopg import Error as PsycopgError
+from psycopg import sql as psycopg_sql
 from psycopg.rows import dict_row
 from pydantic import BaseModel, Field
 
@@ -26,6 +27,12 @@ class PreviewSqlInput(BaseModel):
 
 class SchemaContextInput(BaseModel):
     schema_name: str = Field(description="PostgreSQL schema name.")
+
+
+class TableProfileInput(BaseModel):
+    schema_name: str = Field(description="PostgreSQL schema name.")
+    table_name: str = Field(description="PostgreSQL table name.")
+    sample_limit: int = Field(default=5, ge=1, le=10, description="Maximum sample rows to return.")
 
 
 def strip_trailing_semicolon(sql: str) -> str:
@@ -56,6 +63,60 @@ async def get_schema_context(schema_name: str) -> str:
     """Return compact schema context with tables, columns, data types, and foreign keys."""
     context = await fetch_schema_context(schema_name)
     return context.compact_text()
+
+
+async def get_table_profile(schema_name: str, table_name: str, sample_limit: int = 5) -> str:
+    """Return row count, column metadata, and a tiny sample for one table."""
+    safe_limit = max(1, min(sample_limit, 10))
+    columns_sql = """
+    SELECT column_name, data_type, is_nullable, column_default, ordinal_position
+    FROM information_schema.columns
+    WHERE table_schema = %s AND table_name = %s
+    ORDER BY ordinal_position
+    """
+    count_sql = psycopg_sql.SQL("SELECT COUNT(*) AS row_count FROM {}.{}").format(
+        psycopg_sql.Identifier(schema_name),
+        psycopg_sql.Identifier(table_name),
+    )
+    sample_sql = psycopg_sql.SQL("SELECT * FROM {}.{} LIMIT %s").format(
+        psycopg_sql.Identifier(schema_name),
+        psycopg_sql.Identifier(table_name),
+    )
+
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(columns_sql, [schema_name, table_name])
+                columns = await cur.fetchall()
+                if not columns:
+                    return json_result({"ok": False, "error": "Table was not found in the active schema."})
+
+                await cur.execute(count_sql)
+                row_count = (await cur.fetchone() or {}).get("row_count", 0)
+                await cur.execute(sample_sql, [safe_limit])
+                sample_rows = await cur.fetchall()
+                await conn.rollback()
+    except PsycopgError as exc:
+        return json_result({"ok": False, "error": str(exc).strip()})
+
+    return json_result(
+        {
+            "ok": True,
+            "schema": schema_name,
+            "table": table_name,
+            "rowCount": row_count,
+            "columns": [
+                {
+                    "name": row["column_name"],
+                    "dataType": row["data_type"],
+                    "nullable": row["is_nullable"] == "YES",
+                    "default": row["column_default"],
+                }
+                for row in columns
+            ],
+            "sampleRows": sample_rows,
+        }
+    )
 
 
 async def validate_sql(sql: str) -> str:
@@ -109,6 +170,12 @@ def build_sql_tools() -> list[StructuredTool]:
             name="get_schema_context",
             description="Return compact schema context with tables, columns, data types, and foreign keys.",
             args_schema=SchemaContextInput,
+        ),
+        StructuredTool.from_function(
+            coroutine=get_table_profile,
+            name="get_table_profile",
+            description="Return row count, column metadata, and a tiny sample for one table when schema context is not enough.",
+            args_schema=TableProfileInput,
         ),
         StructuredTool.from_function(
             coroutine=validate_sql,
